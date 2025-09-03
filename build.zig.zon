@@ -1,0 +1,36 @@
+.{
+    .name = .kitsubit,
+    .version = "0.15.1",
+    .dependencies = .{
+        .anne_benchmark = .{
+            .url = "https://github.com/AnneKitsune/anne_benchmark/archive/refs/tags/1.3.0.zip",
+            .hash = "anne_benchmark-1.3.0-DXcAMpsqAABuxYs72i_NZgsoXga6nDi9z9O6aIyRovly",
+        },
+        .anne_dice = .{
+            .url = "https://github.com/AnneKitsune/anne_dice/archive/refs/tags/1.1.0.zip",
+            .hash = "anne_dice-1.1.0-igMQ3ASgAADitOa-e-kMx2sDR_Kt-Hj0uv-_f2bUeX6P",
+        },
+        .anne_uuid = .{
+            .url = "https://github.com/AnneKitsune/anne_uuid/archive/refs/tags/1.1.0.zip",
+            .hash = "anne_uuid-1.1.0-m3kgIy-YAABZS2bDCyNnwfJtBa9j1nJrVNkXQBs21GOO",
+        },
+        .anne_bzip2 = .{
+            .url = "https://github.com/AnneKitsune/anne_bzip2/archive/refs/tags/1.4.0.zip",
+            .hash = "anne_bzip2-1.4.0-oqKA_NLjDwCHWCo4LzWufD1M62rr8bbebEEqU9cz8c9m",
+        },
+        .anne_log = .{
+            .url = "https://github.com/AnneKitsune/anne_log/archive/refs/tags/1.0.0.zip",
+            .hash = "anne_log-1.0.0-9Fs1TF-nAACNLzyclfFtQDFf4DHggk5NkQMX1hYbm4jA",
+        },
+        .anne_table = .{
+            .url = "https://github.com/AnneKitsune/anne_table/archive/refs/tags/0.1.0.zip",
+            .hash = "anne_table-0.1.0-q01rSkDrAABjEQgfUxWtsEt73COzi94gvtUCYuIGWWoA",
+        },
+        .anne_nds_dev = .{
+            .url = "https://github.com/AnneKitsune/anne_nds_dev/archive/refs/tags/1.0.0.zip",
+            .hash = "anne_nds_dev-0.1.0-Dl5WhvSlAAAfgnbD0cgC3hFDRhaMTjIu6DFIej62ey99",
+        },
+    },
+    .paths = .{""},
+    .fingerprint = 0x96951fce0f96eecc,
+}
