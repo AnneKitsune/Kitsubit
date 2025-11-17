@@ -32,5 +32,5 @@
         },
     },
     .paths = .{""},
-    .fingerprint = 0x96951fce0f96eecc,
+    .fingerprint = 0x2ca99551fd06cd8f,
 }
