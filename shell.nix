@@ -20,6 +20,7 @@ pkgs-with-devkit.mkShell.override {
 } {
   # Add any additional packages if needed
   buildInputs = with pkgs-with-devkit; [
+      melonDS
     # Add any additional tools here if needed
   ];
 }

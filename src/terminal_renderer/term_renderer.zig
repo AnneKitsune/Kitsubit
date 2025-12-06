@@ -1,20 +1,15 @@
 const std = @import("std");
-const File = std.fs.File;
 const MultiArrayList = std.MultiArrayList;
 const testing = std.testing;
 
-const raw = @import("raw_term.zig");
-const term_size = @import("term_size.zig");
-const ansi_colors = @import("ansi_colors.zig");
-const ansi_cursor = @import("ansi_cursor.zig");
-const screen = @import("ansi_screen.zig");
-const logger = @import("../logger.zig");
+const ansi_backend = @import("backends/ansi.zig");
+const log = @import("log");
 
 /// Enum of 16 possible colors.
-pub const Color = ansi_colors.Color;
+pub const Color = ansi_backend.Color;
 /// Function to convert a foreground and background color into an index.
 /// It is more efficient to store the index (one byte) than two colors (2 bytes).
-pub const colorIndex = ansi_colors.color_index;
+pub const colorIndex = ansi_backend.colorIndex;
 
 /// Errors that can occur during the renderer's initialization.
 pub const TerminalInitError = error{
@@ -36,6 +31,17 @@ pub const PrintOptions = struct {
 
 const PRINT_BUFFER_SIZE = 2048;
 
+/// Backend selection based on compilation target
+fn selectBackend() type {
+    return struct {
+        const is_pc = @import("builtin").target.isDarwin() or
+            @import("builtin").target.isLinux() or
+            @import("builtin").target.isWindows();
+
+        const Backend = if (is_pc) ansi_backend.AnsiBackend else void;
+    };
+}
+
 /// Structure holding information used to buffer drawing commands, get inputs and render to the terminal.
 ///
 /// Created using the init function.
@@ -50,34 +56,28 @@ const PRINT_BUFFER_SIZE = 2048;
 pub const TerminalRenderer = struct {
     char_buffer: MultiArrayList(CharacterSlot),
     legacy_colors: bool = false,
-    stdin: File,
-    stdout: File,
     size_x: usize = 0,
     size_y: usize = 0,
     alloc: std.mem.Allocator,
 
+    // Backend field with compile-time type selection
+    backend: selectBackend().Backend,
+    // Logging scope for terminal renderer
+    log_scope: log.LogScope,
+
     const S = @This();
+
     /// Creates a new TerminalRenderer.
-    pub fn init(alloc: std.mem.Allocator) !S {
-        const stdin = std.io.getStdIn();
-        const stdout = std.io.getStdOut();
+    pub fn init(alloc: std.mem.Allocator, logger: *log.Log) !S {
         const char_buffer = MultiArrayList(CharacterSlot){};
-
-        if (!stdin.supportsAnsiEscapeCodes()) {
-            return TerminalInitError.ansi_escapes_unsupported;
-        }
-
-        if (!raw.enable_raw_mode()) {
-            return TerminalInitError.raw_mode_failed;
-        }
-
-        try stdout.writer().print("{s}{s}", .{ ansi_cursor.CURSOR_HIDE, screen.SCREEN_ERASE });
+        const backend = try selectBackend().Backend.init();
+        const log_scope = logger.scope("terminal_renderer");
 
         var r = TerminalRenderer{
-            .stdin = stdin,
-            .stdout = stdout,
             .alloc = alloc,
             .char_buffer = char_buffer,
+            .backend = backend,
+            .log_scope = log_scope,
         };
 
         try r.updateSize();
@@ -88,8 +88,7 @@ pub const TerminalRenderer = struct {
     /// Brings the terminal back to it's normal state.
     pub fn deinit(s: *S) void {
         s.render() catch {};
-        _ = raw.disable_raw_mode();
-        s.stdout.writer().print("{s}{s}{s}", .{ ansi_cursor.CURSOR_SHOW, ansi_colors.RESET_CODE, screen.SCREEN_ERASE }) catch {};
+        s.backend.deinit(&s.log_scope);
         s.char_buffer.deinit(s.alloc);
     }
 
@@ -98,6 +97,7 @@ pub const TerminalRenderer = struct {
     /// Only enable if bright colors (8 to 15) are identical to non-bright colors (0 to 7).
     pub fn setLegacyColors(s: *S, legacy: bool) void {
         s.legacy_colors = legacy;
+        s.backend.setLegacyColors(legacy);
     }
 
     /// Flush the internal buffer to the terminal to make the requested changes visible.
@@ -113,14 +113,10 @@ pub const TerminalRenderer = struct {
                 // set color
                 if (last_color != colors[idx]) {
                     last_color = colors[idx];
-                    if (!s.legacy_colors) {
-                        s.write("{s}", .{ansi_colors.COLOR_CODES[last_color]});
-                    } else {
-                        s.write("{s}{s}", .{ ansi_colors.COLOR_CODES[last_color], ansi_colors.LEGACY_CODES[last_color] });
-                    }
+                    s.backend.writeColor(&s.log_scope, colors[idx]);
                 }
                 // print
-                s.write("{c}", .{chars[idx]});
+                s.backend.write(&s.log_scope, "{c}", .{chars[idx]});
             }
         }
         try s.updateSize();
@@ -129,9 +125,7 @@ pub const TerminalRenderer = struct {
 
     /// Updates the internal size struct. Automatically called on init(bool) and on render().
     fn updateSize(s: *S) !void {
-        if (!term_size.term_size(&s.size_x, &s.size_y)) {
-            logger.info("Failed to update terminal size. Skipping size update for this time.", .{});
-        }
+        s.backend.updateSize(&s.log_scope, &s.size_x, &s.size_y);
         try s.char_buffer.ensureTotalCapacity(s.alloc, s.size_x * s.size_y);
         const add_count = s.char_buffer.capacity - s.char_buffer.len;
         for (0..add_count) |_| {
@@ -148,17 +142,17 @@ pub const TerminalRenderer = struct {
 
     /// Makes the cursor visible.
     pub fn cursorShow(s: *S) void {
-        s.write(ansi_cursor.CURSOR_SHOW, .{});
+        s.backend.cursorShow(&s.log_scope);
     }
 
     /// Moves cursor to the requested position.
     pub fn cursorMove(s: *S, x: usize, y: usize) void {
-        s.write(ansi_cursor.CURSOR_MOVE_FORMAT, .{ y + 1, x + 1 });
+        s.backend.cursorMove(&s.log_scope, x, y);
     }
 
     /// Makes the cursor invisible.
     pub fn cursorHide(s: *S) void {
-        s.write(ansi_cursor.CURSOR_HIDE, .{});
+        s.backend.cursorHide(&s.log_scope);
     }
 
     /// Print a string into the internal buffer.
@@ -167,7 +161,7 @@ pub const TerminalRenderer = struct {
         const str = std.fmt.bufPrint(&str_buf, format, args) catch @panic("String too long for TerminalRenderer buffer.");
 
         if (std.debug.runtime_safety and y >= s.size_y) {
-            logger.err("Writing to terminal at y={} but terminal size is {}. String was: {s}. Ignoring.", .{ y, s.size_y, str });
+            s.log_scope.err("Writing to terminal at y={} but terminal size is {}. String was: {s}. Ignoring.", .{ y, s.size_y, str });
             return;
         }
 
@@ -176,7 +170,7 @@ pub const TerminalRenderer = struct {
             const idx = y * s.size_x + x + i;
 
             if (std.debug.runtime_safety and x + i >= s.size_x) {
-                logger.err("Writing to terminal at x={} but terminal size is {}. String was: {s}. Stopping current print.", .{ x, s.size_x, str });
+                s.log_scope.err("Writing to terminal at x={} but terminal size is {}. String was: {s}. Stopping current print.", .{ x, s.size_x, str });
                 return;
             }
 
@@ -192,17 +186,10 @@ pub const TerminalRenderer = struct {
 
     /// Wait for a keyboard input and return it.
     pub fn getInput(self: *S) !u8 {
-        const input = try self.stdin.reader().readByte();
-        return input;
-    }
-
-    fn write(s: *S, comptime format: []const u8, args: anytype) void {
-        s.stdout.writer().print(format, args) catch |e| {
-            logger.err("Failed to print to stdout, err: {}", .{e});
-        };
+        return self.backend.getInput();
     }
 };
 
 test "import" {
-    _ = TerminalRenderer;
+    std.testing.refAllDecls(TerminalRenderer);
 }
