@@ -19,8 +19,8 @@
             .hash = "anne_bzip2-1.4.0-oqKA_NLjDwCHWCo4LzWufD1M62rr8bbebEEqU9cz8c9m",
         },
         .anne_log = .{
-            .url = "https://github.com/AnneKitsune/anne_log/archive/refs/tags/1.0.0.zip",
-            .hash = "anne_log-1.0.0-9Fs1TF-nAACNLzyclfFtQDFf4DHggk5NkQMX1hYbm4jA",
+            .url = "https://github.com/AnneKitsune/anne_log/archive/refs/tags/1.1.0.tar.gz",
+            .hash = "anne_log-1.1.0-9Fs1TNq1AAAt2g2BWd4iAoBrmB0w2tAOIREtMiSwbGr9",
         },
         .anne_table = .{
             .url = "https://github.com/AnneKitsune/anne_table/archive/refs/tags/0.1.0.zip",
