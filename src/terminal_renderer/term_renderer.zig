@@ -11,14 +11,9 @@ const Position2 = vector.Position2;
 const Dimension2 = vector.Dimension2;
 const TextStyle = @import("../text/style.zig").TextStyle;
 
-/// Enum of 16 possible colors.
-pub const Color = @import("../color.zig").Color;
-/// Function to convert a foreground and background color into an index.
-/// It is more efficient to store the index (one byte) than two colors (2 bytes).
-pub const colorIndex = ansi_backend.colorIndex;
+const Color = @import("../color.zig").Color;
 
-// TODO: There might be a way to skip this and forward the bytes directly all the way to the inner writer (for ansi, at least...)
-pub const TEXT_BUFFER_SIZE = 4096;
+const TEXT_BUFFER_SIZE = 4096;
 
 /// Errors that can occur during the renderer's initialization.
 pub const TerminalError = error{
@@ -90,9 +85,9 @@ pub const TerminalRenderer = struct {
     }
 
     pub fn print(s: *S, comptime fmt: []const u8, args: anytype) !void {
-        // TODO it would be nice to skip doing the formatting here and pass fmt & args down into the backend which can handle it
-        // more optimally (like pass it directly to a writer in some cases.)
+        // might be possible to optimize here to avoid formatting into a buffer, but only on ansi... not worth it.
         var text: [TEXT_BUFFER_SIZE]u8 = undefined;
+        // could use std.Io.Writer.fixed and set a zero at pos+1 but that's a pain.
         const filled_text = try std.fmt.bufPrintZ(text[0..], fmt, args);
         try s.vtable.write(s.backend_ptr, s.position.x, s.position.y, s.fg_color, s.bg_color, s.style, filled_text);
     }
