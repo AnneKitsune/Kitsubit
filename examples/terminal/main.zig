@@ -5,41 +5,10 @@ const c = kitsubit.c;
 const KEY_LID = c.KEY_LID;
 const KEY_TOUCH = 1 << 13;
 
-fn clear() void {
-    c.consoleClear();
-}
-
 export fn main() void {
-    _ = c.videoSetMode(c.MODE_0_2D);
-    _ = c.videoSetModeSub(c.MODE_0_2D);
-
-    _ = c.vramSetBankA(c.VRAM_A_MAIN_BG);
-    _ = c.vramSetBankC(c.VRAM_C_SUB_BG);
-
-    _ = c.dmaFillHalfWords(0, c.VRAM_A, 128 * 1024);
-    _ = c.setBackdropColor(c.RGB15(0, 0, 0));
-
-    var top_screen: c.PrintConsole = undefined;
-    var bottom_screen: c.PrintConsole = undefined;
-    _ = c.consoleInit(&top_screen, 3, c.BgType_Text4bpp, c.BgSize_T_256x256, 31, 0, true, true);
-    _ = c.consoleInit(&bottom_screen, 3, c.BgType_Text4bpp, c.BgSize_T_256x256, 31, 0, false, true);
-
-    _ = c.consoleSelect(&top_screen);
-    _ = c.iprintf("Hello World!\n");
-    _ = c.consoleSelect(&bottom_screen);
-    _ = c.iprintf("   \x1b[32mKitsubit by AnneKitsune\n\n\x1b[39m");
-
-    // print line
-    _ = c.iprintf("\x1B[10;0f");
-    const width: usize = @intCast(bottom_screen.consoleWidth);
-    for (0..width) |x| {
-        if (x == 0 or (width > 0 and x == width - 1)) {
-            _ = c.printf("+");
-        } else {
-            _ = c.printf("-");
-        }
-    }
-    _ = c.printf("\n");
+    var backend_bottom = kitsubit.terminal_renderer.TerminalBackendNds.init(.{ .top_screen = false });
+    defer backend_bottom.deinit();
+    var renderer_bottom = backend_bottom.renderer();
 
     // setup input
     // args: delay before start repeat, modulo between repeats
@@ -47,9 +16,29 @@ export fn main() void {
 
     var frame: u32 = 0;
     while (c.pmMainLoop()) {
+        // print header info
+        renderer_bottom.goto(0, 0);
+        renderer_bottom.print("Hello World!", .{}) catch {};
+        renderer_bottom.goto(0, 1);
+        renderer_bottom.print("\x1b[32mKitsubit by AnneKitsune\x1b[39m", .{}) catch {};
+
+        // print line
+        const screen_size = renderer_bottom.getSize() catch {
+            return;
+        };
+        const width = screen_size.x;
+        for (0..width) |x| {
+            renderer_bottom.goto(@intCast(x), 10);
+            if (x == 0 or (width > 0 and x == width - 1)) {
+                renderer_bottom.print("+", .{}) catch {};
+            } else {
+                renderer_bottom.print("-", .{}) catch {};
+            }
+        }
 
         // frame print
-        _ = c.iprintf("\x1B[9;4f%i    ", frame);
+        renderer_bottom.goto(4, 9);
+        renderer_bottom.print("{}", .{frame}) catch {};
         frame = (frame + 1) % 0xFFFF;
 
         // input processor
@@ -59,21 +48,24 @@ export fn main() void {
         const keys_repeat = c.keysDownRepeat();
         const keys_up = c.keysUp();
         // press down event
-        _ = c.iprintf("\x1B[11;0fdown: %i     ", keys_down);
-        // currently down
-        _ = c.iprintf("\x1B[12;0fheld: %i     ", keys_held);
-        // held down over threshold time
-        _ = c.iprintf("\x1B[13;0frepe: %i     ", keys_repeat);
-        // released event
-        _ = c.iprintf("\x1B[14;0fup  : %i     ", keys_up);
+        renderer_bottom.goto(0, 11);
+        renderer_bottom.print("down: {b:0>16}", .{keys_down}) catch {};
+        renderer_bottom.goto(0, 12);
+        renderer_bottom.print("held: {b:0>16}", .{keys_held}) catch {};
+        renderer_bottom.goto(0, 13);
+        renderer_bottom.print("repe: {b:0>16}", .{keys_repeat}) catch {};
+        renderer_bottom.goto(0, 14);
+        renderer_bottom.print("up  : {b:0>16}", .{keys_up}) catch {};
 
         // touchpad
         var touch_data: c.TouchData = undefined;
         const touched = c.touchRead(&touch_data);
         if (touched) {
-            _ = c.iprintf("\x1B[15;0ftouch: %i,%i     ", touch_data.px, touch_data.py);
+            renderer_bottom.goto(0, 15);
+            renderer_bottom.print("touch: {},{}", .{ touch_data.px, touch_data.py }) catch {};
         } else {
-            _ = c.iprintf("\x1B[15;0ftouch: n/a     ");
+            renderer_bottom.goto(0, 15);
+            renderer_bottom.print("touch: n/a     ", .{}) catch {};
         }
 
         // line render
@@ -81,6 +73,6 @@ export fn main() void {
         //c.glBox(10, 10, 20, 20, 0xAAAA);
         //c.glEnd2D();
 
-        c.swiWaitForVBlank();
+        renderer_bottom.flush(true) catch {};
     }
 }

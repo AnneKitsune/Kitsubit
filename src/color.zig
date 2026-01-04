@@ -16,19 +16,21 @@ pub const Color = union(ColorType) {
     rgbaf: ColorRgbaf,
 
     const S = @This();
-    pub fn convert(s: *S, other_type: type) S {
-        switch (other_type) {
+    pub fn convert(s: *const S, into: ColorType) S {
+        switch (into) {
             .ansi_terminal => {
                 switch (s) {
+                    .ansi_terminal => {},
                     .color256 => |from| {
                         if (s.color256 < 16) {
                             return .{ .color256 = from };
                         }
                         @panic("Unimplemented");
                     },
+                    else => @panic("Unimplemented"),
                 }
             },
-            else => @compileError("Unimplemented!"),
+            else => @panic("Unimplemented!"),
         }
     }
 };

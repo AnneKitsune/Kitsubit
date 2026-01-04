@@ -5,6 +5,7 @@ const testing = std.testing;
 
 /// Array containing the ansi code to change the color for each of the color indices.
 pub const COLOR_CODES = block: {
+    @setEvalBranchQuota(100000);
     var arr: [256][10:0]u8 = undefined;
     var i = 0;
     while (i < 256) : (i += 1) {
